@@ -158,7 +158,7 @@ iface can0 can static
 
 Now, in the `printer.cfg` file, enter these UUIDs in different `[mcu]` sections of each motherboard and toolboard. The UUID can be written in the `canbus_uuid:` line
 
-## Setting CAN in BTT Manta M5P + RP2040 based CAN toolboard
+## Setting CAN in (BTT Manta M5P + BTT CB1) + RP2040 (similar to MKS TH36) based CAN toolboard
 
 The following steps consists of instruction to setup CAN communication in between BTT Manta M5P with BTT CB1 embed onto it and a RP2040 based CAN toolboard with the help of CanBoot Bootloader that is to be installed.
 
@@ -242,7 +242,7 @@ python3 ~/CanBoot/scripts/flash_can.py -q
 
 Note the UUID in order to use it to flash the klipper.uf2 file. Make sure that, it is mentioned as `CanBoot` beside the UUID
 
-Now, we make the Klipper FIrmware for the EBB36 Toolboard.
+Now, we make the Klipper FIrmware for the RP2040 Toolboard.
 
 SSH into the CB1 and enter the following commands:
 
@@ -262,7 +262,130 @@ SSH into the CB1 and enter the following commands:
 
 After setting, hit `Q` and then hit `Y` when asked to save changes
 
-Enter `make clean`, and then enter `make`. This will compile the 'klipper.uf2' file
+Enter `make clean`, and then enter `make`. This will compile the 'klipper.bin' file
+
+In order to flash the RP2040 toolboard with Klipper, enter the command:
+
+```
+ python3 ~/CanBoot/scripts/flash_can.py -i can0 -f ~/klipper/out/klipper.bin -u (Put_Your_UUID_Here)
+```
+
+In the terminal, enter the command:
+```
+ ~/CanBoot/scripts/flash_can.py -i can0 -q  
+ ```
+
+ or
+
+ ```
+ ~/klippy-env/bin/python ~/klipper/scripts/canbus_query.py can0
+```
+
+
+Make sure that, it is mentioned as `Klipper` beside the UUID.
+
+Note: check the `can0` setup by entering:
+```
+sudo nano /etc/network/interfaces.d/can0
+```
+
+and enter in:
+
+```
+allow-hotplug can0
+iface can0 can static
+      bitrate 500000
+      up ifconfig $IFACE txqueuelen 2048
+```
+
+Now, in the `printer.cfg` file, enter these UUIDs in different `[mcu]` sections of each motherboard and toolboard. The UUID can be written in the `canbus_uuid:` line
+
+## Setting CAN in (BTT Manta M8P + BTT CB1) + BTT U2C + RP2040 (similar to MKS TH36) based CAN toolboard 
+
+### With Pre-installed U2C Firmware
+
+Note: The following steps are to be followed only when the U2C module comes in pre-installed when it arrives for precautionary purposes.
+
+1. In the terminal, type in `sudo nano /etc/network/interfaces.d/can0` to set the CAN network configuration that is required.
+
+2. Set in the settings as follows:
+```
+allow-hotplug can0
+iface can0 can static
+      bitrate 500000
+      up ifconfig $IFACE txqueuelen 128
+```
+
+3. Save the file with `CTRL-x` and reboot the pi with `sudo reboot`
+
+4. Verify the network via `ip -s link show can0` which should reflect that the CAN network is UP. If the network is not found, connect your U2C via USB and repeat the command to verify the `can0` network is up.
+
+Following are the steps to install CanBoot Bootloader in the RP2040 in order to setup CanBus and get the unique UUID. 
+
+SSH into the CB1 and enter the following commands:
+
+1. `cd ~`
+2. `git clone https://github.com/Arksine/CanBoot.git`
+3. `cd ~/CanBoot`
+4. `make menuconfig`
+
+Here, we initially set the CanBoot Bootloader installation in the RP2040 Toolboard. After `make menuconfig`, the following are to be set up:
+```
+    Micro-controller Architecture (Raspberry Pi RP2040)  --->
+    Flash chip (W25Q080 with CLKDIV 2)  --->
+    Build CanBoot deployment application (Do not build)  --->
+    Communication interface (CAN bus)  --->
+(0) CAN RX gpio number
+(1) CAN TX gpio number
+(500000) CAN bus speed
+()  GPIO pins to set on bootloader entry
+[*] Support bootloader entry on rapid double click of reset button
+[ ] Enable bootloader entry on button (or gpio) state
+[*] Enable Status LED
+(gpio2) Status LED GPIO Pin
+```
+
+After setting, hit `Q` and then hit `Y` when asked to save changes
+
+Enter `make clean`, and then enter `make`. This will compile the 'canboot.uf2' file
+
+Now, enter bootloader mode by holding `BOOT` and tapping `RESET`, and then letting go of `BOOT` (OR) Remove the USB cable, hold `BOOT` and while holding, reconnect the USB cable. Send `lsusb` in the terminal, and then search for a port `2e8a:0003`. If it is present, it means that the board is in bootloader mode.
+
+Flash the CanBoot firmware by entering in the command:
+```
+sudo make flash FLASH_DEVICE=2e8a:0003
+```
+
+In order to get the UUID of the board, enter the command in the terminal:
+
+```
+python3 ~/CanBoot/scripts/flash_can.py -q
+```
+
+
+Note the UUID in order to use it to flash the klipper.uf2 file. Make sure that, it is mentioned as `CanBoot` beside the UUID
+
+Now, we make the Klipper FIrmware for the RP2040 Toolboard.
+
+SSH into the CB1 and enter the following commands:
+
+1. `cd ~/klipper/`
+2. `make menuconfig`
+
+```
+[*] Enable extra low-level configuration options
+    Micro-controller Architecture (Raspberry Pi RP2040)  --->
+    Bootloader offset (16KiB bootloader)  --->
+    Communication interface (CAN bus)  --->
+(0) CAN RX gpio number
+(1) CAN TX gpio number
+(500000) CAN bus speed
+()  GPIO pins to set at micro-controller startup
+```
+
+After setting, hit `Q` and then hit `Y` when asked to save changes
+
+Enter `make clean`, and then enter `make`. This will compile the 'klipper.bin' file
 
 In order to flash the RP2040 toolboard with Klipper, enter the command:
 
