@@ -719,3 +719,44 @@ iface can0 can static
 ```
 
 Now, in the `printer.cfg` file, enter these UUIDs in different `[mcu]` sections of each motherboard and toolboard. The UUID can be written in the `canbus_uuid:` line
+
+## Converting the BTT Manta M5P/M8P from CANBUS to Serial Connection
+
+1. As per the above processes, you get the `canbus UUID's` of every microcontroller including the motherboard. When this UUID is generated, it cannot generate the serial ID simultaneously when required. The `/dev/serial/by-id/` path becomes invalid since the `serial folder` gets eliminated when flashing with canbus UUID. In this case we need to set the communication as `USB` in the klipper configuration for the Manta boards and flash it in DFU mode. The following steps shows the complete process.
+
+2. ![image](https://github.com/FracktalWorks/CANBUS-setup-documentation/assets/80109965/589382e5-0442-4cd4-8f4f-2e6ad890f052)
+
+In case if the list of Bus devices show a `CAN adapter` after sending `lsusb` like in the above image, then the serial ID won't be generated. A new configuration has to be set for it. Set it as per the USB communication, or as per the respective manuals.
+
+3. - `cd ~/klipper/`
+   - `make menuconfig`
+  
+```
+   [*] Enable extra low-level configuration options
+    Micro-controller Architecture (STMicroelectronics STM32)  --->
+    Processor model (STM32G0B1)  --->
+    Bootloader offset (8KiB bootloader)  --->
+    Clock Reference (8 MHz crystal)  --->
+    Communication interface (USB (on PA11/PA12))  --->
+    USB ids  --->
+()  GPIO pins to set at micro-controller startup
+```
+4. After setting, hit `Q` and then hit `Y` when asked to save changes
+
+5. Enter `make clean`, and then enter `make`. This will compile the 'klipper.bin' file
+
+6. Now, enter DFU mode by holding `BOOT` and tapping `RESET`, and then letting go of `BOOT`. Send `lsusb` in the terminal, and then search for a port `0483:df11`. If it is present, it means that the board is in DFU mode.
+
+7. Flash the firmware by entering in the command:
+```
+make flash FLASH_DEVICE=0483:df11
+```
+8. Send in `lsusb` in the terminal and check the status of the current type of USB device that are connected. It should look like this:
+
+![image](https://github.com/FracktalWorks/CANBUS-setup-documentation/assets/80109965/9da015d5-521a-433c-8224-0cd386dc9c30)
+
+9. Now send in `ls /dev/serial/by-id/*`. This will generate the serial ID after flashing.
+
+10. Note down the complete path and the ID. Now enter ` make flash FLASH_DEVICE=/dev/serial/by-id/usb-Klipper_stm32g0b1xx_xxx` in the terminal where 'xxx' is the unique number that is generated in step 9.
+
+11. Now the serial ID is flashed successfully and now the board works on serial communication
