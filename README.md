@@ -717,7 +717,165 @@ iface can0 can static
       bitrate 500000
       up ifconfig $IFACE txqueuelen 2048
 ```
+Now, in the `printer.cfg` file, enter these UUIDs in different `[mcu]` sections of each motherboard and toolboard. The UUID can be written in the `canbus_uuid:` line
 
+## Setting CAN in (BTT Manta M8P V2.0 + RPi CM4) + RP2040 (similar to MKS TH36) based CAN toolboard
+
+The following steps consists of instruction to setup CAN communication in between BTT Manta M8P V2.0 with RPi CM4 embed onto it and a RP2040 based CAN toolboard with the help of CanBoot Bootloader that is to be installed.
+
+### Initial setup
+
+Make sure the OS image is of the local Raspbian based settings and configuration, which is similar to the other ranges of Julia Printers.
+
+After the above steps, SSH into the CM4, preferably using 'Bitvise SSH Client'. Open the terminal and update the OS using `sudo apt update`. After the update, Follow the steps to install `USB to CAN` communication based klipper firmware in the BTT Manta M8P V2.0. Make sure klipper is installed in the CM4.
+
+1. `cd ~/klipper/`
+2. `make menuconfig`
+
+```
+[*] Enable extra low-level configuration options
+    Micro-controller Architecture (STMicroelectronics STM32)  --->
+    Processor model (STM32H723)  --->
+    Bootloader offset (128KiB bootloader (SKR SE BX v2.0))  --->
+    Clock Reference (25 MHz crystal)  --->
+    Communication interface (USB to CAN bus bridge (USB on PA11/PA12))  --->
+    CAN bus interface (CAN bus (on PD0/PD1))  --->
+    USB ids  --->
+(1000000) CAN bus speed
+()  GPIO pins to set at micro-controller startup
+```
+After setting, hit `Q` and then hit `Y` when asked to save changes
+
+Enter `make clean`, and then enter `make`. This will compile the 'klipper.bin' file
+
+Now, enter DFU mode by holding `BOOT` and tapping `RESET`, and then letting go of `BOOT`. Send `lsusb` in the terminal, and then search for a port `0483:df11`. If it is present, it means that the board is in DFU mode.
+
+Flash the firmware by entering in the command:
+```
+make flash FLASH_DEVICE=0483:df11
+```
+
+In order to get the UUID of the board, enter the command in the terminal:
+```
+ ~/klippy-env/bin/python ~/klipper/scripts/canbus_query.py can0
+```
+Store this UUID safely in order to use in the klipper's configuration.
+
+SSH into the CM4 and enter the following commands:
+
+1. `cd ~`
+2. `git clone https://github.com/Arksine/katapult`
+(previously CanBoot)
+3. `cd ~/katapult` or `cd ~/CanBoot` (if you have the older 'CanBoot' version)
+4. `make menuconfig`
+
+Here, we initially set the CanBoot Bootloader installation in the RP2040 Toolboard. After `make menuconfig`, the following are to be set up:
+```
+    Micro-controller Architecture (Raspberry Pi RP2040)  --->
+    Flash chip (W25Q080 with CLKDIV 2)  --->
+    Build CanBoot deployment application (Do not build)  --->
+    Communication interface (CAN bus)  --->
+(0) CAN RX gpio number
+(1) CAN TX gpio number
+(1000000) CAN bus speed
+()  GPIO pins to set on bootloader entry
+[*] Support bootloader entry on rapid double click of reset button
+[ ] Enable bootloader entry on button (or gpio) state
+[*] Enable Status LED
+(gpio2) Status LED GPIO Pin
+```
+
+After setting, hit `Q` and then hit `Y` when asked to save changes
+
+Enter `make clean`, and then enter `make`. This will compile the 'canboot.uf2' file
+
+Now, enter bootloader mode by holding `BOOT` and tapping `RESET`, and then letting go of `BOOT` (OR) Remove the USB cable, hold `BOOT` and while holding, reconnect the USB cable. Send `lsusb` in the terminal, and then search for a port `2e8a:0003`. If it is present, it means that the board is in bootloader mode.
+
+Flash the CanBoot firmware by entering in the command:
+```
+sudo make flash FLASH_DEVICE=2e8a:0003
+```
+
+In order to get the UUID of the board, enter the command in the terminal:
+
+```
+python3 ~/katapult/scripts/flash_can.py -q
+```
+or
+```
+python3 ~/CanBoot/scripts/flash_can.py -q
+```
+(for older 'CanBoot' version)
+
+Note the UUID in order to use it to flash the klipper.uf2 file. Make sure that, it is mentioned as `katapult` beside the UUID
+
+Now, we make the Klipper FIrmware for the RP2040 Toolboard.
+
+SSH into the CM4 and enter the following commands:
+
+1. `cd ~/klipper/`
+2. `make menuconfig`
+
+```
+[*] Enable extra low-level configuration options
+    Micro-controller Architecture (Raspberry Pi RP2040)  --->
+    Bootloader offset (16KiB bootloader)  --->
+    Communication interface (CAN bus)  --->
+(0) CAN RX gpio number
+(1) CAN TX gpio number
+(1000000) CAN bus speed
+()  GPIO pins to set at micro-controller startup
+```
+
+After setting, hit `Q` and then hit `Y` when asked to save changes
+
+Enter `make clean`, and then enter `make`. This will compile the 'klipper.bin' file
+
+In order to flash the RP2040 toolboard with Klipper, enter the command:
+
+```
+ python3 ~/katapult/scripts/flash_can.py -i can0 -f ~/klipper/out/klipper.bin -u (Put_Your_UUID_Here)
+```
+or
+```
+ python3 ~/CanBoot/scripts/flash_can.py -i can0 -f ~/klipper/out/klipper.bin -u (Put_Your_UUID_Here)
+```
+(for older 'CanBoot' version
+
+In the terminal, enter the command:
+```
+ ~/katapult/scripts/flash_can.py -i can0 -q  
+ ```
+
+or
+
+```
+ ~/CanBoot/scripts/flash_can.py -i can0 -q  
+ ```
+(older 'CanBoot' version)
+
+ or
+
+ ```
+ ~/klippy-env/bin/python ~/klipper/scripts/canbus_query.py can0
+```
+
+
+Make sure that, it is mentioned as `Klipper` beside the UUID.
+
+Note: check the `can0` setup by entering:
+```
+sudo nano /etc/network/interfaces.d/can0
+```
+
+and enter in:
+
+```
+allow-hotplug can0
+iface can0 can static
+    bitrate 1000000
+    up ifconfig $IFACE txqueuelen 128
+```
 Now, in the `printer.cfg` file, enter these UUIDs in different `[mcu]` sections of each motherboard and toolboard. The UUID can be written in the `canbus_uuid:` line
 
 ## Converting the BTT Manta M5P/M8P from CANBUS to Serial Connection
@@ -760,3 +918,4 @@ make flash FLASH_DEVICE=0483:df11
 10. Note down the complete path and the ID. Now enter ` make flash FLASH_DEVICE=/dev/serial/by-id/usb-Klipper_stm32g0b1xx_xxx` in the terminal where 'xxx' is the unique number that is generated in step 9.
 
 11. Now the serial ID is flashed successfully and now the board works on serial communication
+
